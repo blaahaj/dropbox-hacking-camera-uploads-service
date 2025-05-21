@@ -1,37 +1,55 @@
 import { Mover } from "@blaahaj/dropbox-hacking-mover";
 import {
   DropboxProvider,
-  getDropboxClient,
-  getGlobalOptions,
   GlobalOptions,
-  GlobalOptionsSingleton,
-  retrier,
+  processOptions,
 } from "@blaahaj/dropbox-hacking-util";
-import { tidy } from "./tidy.js";
+import { tidy as doTidy } from "./tidy.js";
 import { move } from "./move.js";
+import {
+  runAsMain,
+  type Handler,
+  type Operation,
+} from "@blaahaj/dropbox-hacking-util/cli";
 
+const verb = "process-camera-uploads";
 const CAMERA_UPLOADS = "/Camera Uploads";
+
+const TIDY = "--tidy";
+const TAIL = "--tail";
+const DRY_RUN = "--dry-run";
 
 // type FileMetadataWithPath = FileMetadata & { path_lower: string; path_display: string };
 // type FolderMetadataWithPath = FolderMetadata & { path_lower: string; path_display: string };
 // const fileHasPath = (item: FileMetadata): item is FileMetadataWithPath => !!item.path_lower && !!item.path_display;
 // const folderHasPath = (item: FolderMetadata): item is FileMetadataWithPath => !!item.path_lower && !!item.path_display;
 
-const main = async (args: {
-  dbxp: DropboxProvider;
-  globalOptions: GlobalOptions;
-  dryRun: boolean;
-  tail: boolean;
-  tidy: boolean;
-}) => {
-  const cameraUploadsPath = CAMERA_UPLOADS;
+const handler: Handler = async (
+  dbxp: DropboxProvider,
+  argv: string[],
+  globalOptions: GlobalOptions,
+  usageFail: () => Promise<void>,
+) => {
+  let tidy = false;
+  let tail = false;
+  let dryRun = false;
 
-  const dbx = await args.dbxp();
+  argv = processOptions(argv, {
+    [TIDY]: () => (tidy = true),
+    [TAIL]: () => (tail = true),
+    [DRY_RUN]: () => (dryRun = true),
+  });
 
-  if (args.tidy) {
-    await tidy({ dbx, globalOptions, cameraUploadsPath });
+  if (argv.length > 1) void usageFail();
+
+  const cameraUploadsPath = argv[0] || CAMERA_UPLOADS;
+
+  const dbx = await dbxp();
+
+  if (tidy) {
+    await doTidy({ dbx, globalOptions, cameraUploadsPath });
   } else {
-    const mover = new Mover(dbx, args.globalOptions);
+    const mover = new Mover(dbx, globalOptions);
 
     let shutdownPromise = Promise.resolve();
     const shutdownWaitsFor = (p: Promise<unknown>): void => {
@@ -45,9 +63,9 @@ const main = async (args: {
       dbx,
       globalOptions,
       cameraUploadsPath,
-      dryRun: args.dryRun,
+      dryRun,
       mover,
-      tail: args.tail,
+      tail,
       shutdownWaitsFor,
     });
 
@@ -57,19 +75,14 @@ const main = async (args: {
   process.exit(0);
 };
 
-const { globalOptions } = getGlobalOptions(process.argv.slice(2));
-GlobalOptionsSingleton.set(globalOptions);
+const argsHelp = [
+  `${verb} [${TIDY}] [${DRY_RUN}] [${TAIL}] [CAMERA_UPLOADS_DIR]`,
+];
 
-const dbxp = () =>
-  getDropboxClient().then((dbx) => retrier(dbx, globalOptions));
+const op: Operation = {
+  handler,
+  verb,
+  argsHelp,
+};
 
-main({
-  dbxp,
-  globalOptions,
-  dryRun: !!process.env.DRY_RUN,
-  tail: !!process.env.TAIL,
-  tidy: !!process.env.TIDY,
-}).catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+runAsMain(op);
