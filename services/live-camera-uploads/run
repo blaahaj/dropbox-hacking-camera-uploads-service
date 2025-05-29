@@ -8,8 +8,4 @@ export PATH="$HOME/bin:$PATH"
 
 cd "$( git rev-parse --show-toplevel )"
 
-export DRY_RUN=
-export TAIL=true
-export TIDY=
-
-exec ./with-live node ./dist/src/main.js
+exec ./with-live node ./dist/src/main.js --tail

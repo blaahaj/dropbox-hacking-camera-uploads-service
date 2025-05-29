@@ -14,7 +14,7 @@ export const targetForRemoteFile = (
   return targetForFile(item.name, item.content_hash, item.client_modified);
 };
 
-const targetForFile = (
+export const targetForFile = (
   basename: string,
   contentHash: string,
   clientModified: string,
