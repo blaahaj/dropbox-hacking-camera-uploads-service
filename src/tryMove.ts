@@ -25,7 +25,6 @@ export const tryMove = async (args: {
       }
 
       console.log(JSON.stringify({ get_existing: err }));
-      // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw err;
     },
   );
